@@ -1,12 +1,19 @@
 {
-  "name": "blogauth",
+  "name": "claimshield",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "server"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:web": "next dev",
+    "dev:api": "npm run dev --prefix server",
+    "dev:all": "concurrently -n web,api -c blue,green \"npm run dev\" \"npm run dev --prefix server\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
    "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -20,9 +27,14 @@
     "next-auth": "^4.24.13",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "jspdf": "^2.5.2",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
+    "concurrently": "^9.1.2",
     "@tailwindcss/postcss": "^4",
     "@types/cookie": "^0.6.0",
     "@types/node": "^20",
