@@ -11,6 +11,11 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
 
   redis:
     image: redis:7
@@ -21,6 +26,45 @@ services:
     volumes:
       - redisdata:/data
 
+  ai:
+    build: ./ai-service
+    container_name: claimshield_ai
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: "5000"
+      FLASK_DEBUG: "0"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: claimshield_api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/rate_limitter?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      AI_SERVICE_URL: http://ai:5000
+      PORT: "4000"
+      UPLOAD_DIR: /app/uploads
+      CORS_ORIGIN: http://localhost:3000
+    volumes:
+      - api_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ai:
+        condition: service_started
+
 volumes:
   pgdata:
   redisdata:
+  api_uploads:
