@@ -1,8 +1,6 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-
-dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
-dotenv.config();
 import crypto from "node:crypto";
 import fs from "node:fs";
 import express from "express";
@@ -14,7 +12,12 @@ import authRoutes from "./routes/auth.js";
 import analysesRoutes from "./routes/analyses.js";
 import { optionalAuth, authMiddleware, type AuthedRequest } from "./middleware/auth.js";
 import { prisma } from "./lib/prisma.js";
-import { cacheGet, cacheSet } from "./lib/redis.js";
+import { cacheDel, cacheGet, cacheSet } from "./lib/redis.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -51,6 +54,14 @@ app.get("/health", (_req, res) => {
 app.use("/auth", authRoutes);
 app.use("/analyses", analysesRoutes);
 
+type UploadSession = {
+  sessionId: string;
+  policyPath?: string;
+  policyFileName?: string;
+  hospitalPaths?: string[];
+  hospitalFileNames?: string[];
+};
+
 app.post(
   "/upload",
   optionalAuth,
@@ -66,15 +77,14 @@ app.post(
       return res.status(400).json({ error: "Upload at least one file" });
     }
     const sessionId = crypto.randomUUID();
-    const payload = {
+    const payload: UploadSession = {
       sessionId,
       policyPath: policy?.path,
       policyFileName: policy?.originalname,
       hospitalPaths: hospital.map((h) => h.path),
       hospitalFileNames: hospital.map((h) => h.originalname),
-      userId: req.userId ?? null,
     };
-    await cacheSet(`upload:${sessionId}`, JSON.stringify(payload), 60 * 60);
+    await cacheSet(`upload:${sessionId}`, JSON.stringify({ ...payload, userId: req.userId ?? null }), 60 * 60);
     return res.json({
       uploadSessionId: sessionId,
       policyFileName: policy?.originalname,
@@ -88,6 +98,8 @@ app.post("/analyze", optionalAuth, async (req: AuthedRequest, res) => {
     const contentType = req.headers["content-type"] || "";
     let policyFile: Express.Multer.File | undefined;
     let hospitalFiles: Express.Multer.File[] = [];
+    let policyFileName: string | null = null;
+    let hospitalFileName: string | null = null;
 
     if (contentType.includes("multipart/form-data")) {
       await new Promise<void>((resolve, reject) => {
@@ -99,6 +111,8 @@ app.post("/analyze", optionalAuth, async (req: AuthedRequest, res) => {
       const files = req.files as Record<string, Express.Multer.File[]>;
       policyFile = files?.policy?.[0];
       hospitalFiles = files?.hospital || [];
+      policyFileName = policyFile?.originalname ?? null;
+      hospitalFileName = hospitalFiles.map((h) => h.originalname).join(", ") || null;
     }
 
     const uploadSessionId = (req.body as { uploadSessionId?: string }).uploadSessionId;
@@ -109,10 +123,9 @@ app.post("/analyze", optionalAuth, async (req: AuthedRequest, res) => {
       if (!raw) {
         return res.status(400).json({ error: "Upload session expired or invalid" });
       }
-      const session = JSON.parse(raw) as {
-        policyPath?: string;
-        hospitalPaths?: string[];
-      };
+      const session = JSON.parse(raw) as UploadSession;
+      policyFileName = session.policyFileName ?? null;
+      hospitalFileName = session.hospitalFileNames?.length ? session.hospitalFileNames.join(", ") : null;
       formForAi = new FormData();
       if (session.policyPath && fs.existsSync(session.policyPath)) {
         formForAi.append("policy", fs.createReadStream(session.policyPath));
@@ -154,18 +167,24 @@ app.post("/analyze", optionalAuth, async (req: AuthedRequest, res) => {
       model_features: data.model_features,
     };
 
+    let analysisId: string | undefined;
     if (req.userId) {
-      await prisma.analysis.create({
+      const row = await prisma.analysis.create({
         data: {
           userId: req.userId,
-          policyFileName: policyFile?.originalname ?? null,
-          hospitalFileName: hospitalFiles.map((h) => h.originalname).join(", ") || null,
+          policyFileName,
+          hospitalFileName,
           result: result as object,
         },
       });
+      analysisId = row.id;
     }
 
-    return res.json(result);
+    if (uploadSessionId) {
+      await cacheDel(`upload:${uploadSessionId}`);
+    }
+
+    return res.json({ ...result, analysisId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Analyze failed";
     const detail = axios.isAxiosError(e) ? e.response?.data : undefined;

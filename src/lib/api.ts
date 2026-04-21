@@ -12,6 +12,7 @@ export type AnalyzeResult = {
   };
   structured: Record<string, unknown>;
   model_features?: Record<string, number>;
+  analysisId?: string;
 };
 
 export function getToken(): string | null {
@@ -47,7 +48,10 @@ export async function registerRequest(email: string, password: string, name?: st
     body: JSON.stringify({ email, password, name }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || "Registration failed");
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(typeof err.error === "string" ? err.error : "Registration failed");
+  }
   return data as { token: string; user: { id: string; email: string; name?: string | null } };
 }
 
@@ -58,7 +62,10 @@ export async function loginRequest(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || "Login failed");
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(typeof err.error === "string" ? err.error : "Login failed");
+  }
   return data as { token: string; user: { id: string; email: string; name?: string | null } };
 }
 
@@ -73,8 +80,31 @@ export async function analyzeFiles(policy: File | null, hospital: File[]) {
     body: fd,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error || "Analysis failed");
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(typeof err.error === "string" ? err.error : "Analysis failed");
+  }
   return data as AnalyzeResult;
+}
+
+export async function fetchAnalysisById(id: string) {
+  const token = getToken();
+  if (!token) throw new Error("Log in to load saved analyses");
+  const res = await fetch(`${API_BASE}/analyses/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = data as { error?: string };
+    throw new Error(typeof err.error === "string" ? err.error : "Not found");
+  }
+  const analysis = (data as { analysis: { id: string; result: unknown; appealLetter?: string | null } }).analysis;
+  const base = analysis.result as AnalyzeResult;
+  return {
+    ...base,
+    analysisId: analysis.id,
+    savedAppealLetter: analysis.appealLetter ?? undefined,
+  } as AnalyzeResult & { savedAppealLetter?: string };
 }
 
 export async function generateAppealPayload(body: {

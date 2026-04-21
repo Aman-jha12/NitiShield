@@ -17,10 +17,14 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+function zodMessage(err: z.ZodError): string {
+  return err.issues.map((i) => i.message).join("; ");
+}
+
 router.post("/register", async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error) });
   }
   const { email, password, name } = parsed.data;
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -42,7 +46,7 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error) });
   }
   const { email, password } = parsed.data;
   const user = await prisma.user.findUnique({ where: { email } });

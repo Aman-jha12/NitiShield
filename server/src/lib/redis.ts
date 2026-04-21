@@ -30,3 +30,13 @@ export async function cacheSet(key: string, value: string, ttlSec: number): Prom
     /* ignore */
   }
 }
+
+export async function cacheDel(key: string): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  try {
+    await r.del(key);
+  } catch {
+    /* ignore */
+  }
+}
