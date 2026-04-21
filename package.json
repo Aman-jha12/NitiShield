@@ -10,6 +10,8 @@
     "dev:web": "next dev",
     "dev:api": "npm run dev --prefix server",
     "dev:all": "concurrently -n web,api -c blue,green \"npm run dev\" \"npm run dev --prefix server\"",
+    "dev:ai": "node ai-service/run.mjs",
+    "dev:stack": "concurrently -n web,api,ai -c blue,green,magenta \"npm run dev\" \"npm run dev --prefix server\" \"node ai-service/run.mjs\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

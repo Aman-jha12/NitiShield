@@ -13,6 +13,8 @@ export type AnalyzeResult = {
   structured: Record<string, unknown>;
   model_features?: Record<string, number>;
   analysisId?: string;
+  /** Present when loading a saved analysis that already has an appeal draft */
+  savedAppealLetter?: string;
 };
 
 export function getToken(): string | null {
@@ -104,7 +106,7 @@ export async function fetchAnalysisById(id: string) {
     ...base,
     analysisId: analysis.id,
     savedAppealLetter: analysis.appealLetter ?? undefined,
-  } as AnalyzeResult & { savedAppealLetter?: string };
+  } as AnalyzeResult;
 }
 
 export async function generateAppealPayload(body: {

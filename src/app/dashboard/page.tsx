@@ -122,12 +122,18 @@ export default function DashboardPage() {
                 )}
                 {rows.map((r) => (
                   <tr key={r.id} className="text-slate-800 dark:text-slate-200">
-                    <td className="px-4 py-3 whitespace-nowrap">{new Date(r.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Link href={`/dashboard/results?id=${r.id}`} className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">
+                        {new Date(r.createdAt).toLocaleString()}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">{r.policyFileName || "—"}</td>
                     <td className="px-4 py-3 max-w-xs truncate">{r.hospitalFileName || "—"}</td>
                     <td className="px-4 py-3 capitalize">{r.risk_level || "—"}</td>
                     <td className="px-4 py-3">
-                      {typeof r.probability === "number" ? `${Math.round(r.probability * 100)}%` : "—"}
+                      <Link href={`/dashboard/results?id=${r.id}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                        {typeof r.probability === "number" ? `${Math.round(r.probability * 100)}%` : "—"}
+                      </Link>
                     </td>
                   </tr>
                 ))}
