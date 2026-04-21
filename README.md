@@ -52,9 +52,9 @@ ClaimShield is an MVP full-stack app that **estimates health insurance claim rej
 4. **Run services** (three terminals)
 
    ```bash
-   # Terminal A — AI service
-   cd ai-service
-   python app.py
+   # Terminal A — AI service (from repo root)
+   npm run dev:ai
+   # or: cd ai-service && python app.py
    ```
 
    ```bash
@@ -74,6 +74,12 @@ ClaimShield is an MVP full-stack app that **estimates health insurance claim rej
    npm run dev:all
    ```
 
+   To start **Next.js + Express + Flask** in one terminal:
+
+   ```bash
+   npm run dev:stack
+   ```
+
 5. **Use the app**
 
    Open [http://localhost:3000](http://localhost:3000) → **Upload** policy + hospital documents → **Analyze** → review probability, violations, reasons, suggestions → **Generate appeal letter** or **Download PDF report**.
@@ -85,8 +91,8 @@ ClaimShield is an MVP full-stack app that **estimates health insurance claim rej
 | `POST` | `/auth/register` | Email + password (≥8 chars) |
 | `POST` | `/auth/login` | Returns JWT |
 | `POST` | `/upload` | Multipart `policy`, `hospital[]`; optional `Authorization` |
-| `POST` | `/analyze` | Multipart files **or** JSON `{ "uploadSessionId" }` after `/upload` |
-| `POST` | `/appeal` | JSON: `structured`, `cross_reference`, `probability` |
+| `POST` | `/analyze` | Multipart files **or** JSON `{ "uploadSessionId" }` after `/upload`; response includes `analysisId` when JWT present |
+| `POST` | `/appeal` | JSON: `structured`, `cross_reference`, `probability`; optional `analysisId` to persist letter |
 | `GET` | `/analyses` | JWT — list saved runs |
 | `GET` | `/analyses/:id` | JWT — one run |
 | `GET` | `/analytics/summary` | JWT — simple aggregates |
@@ -108,7 +114,22 @@ On first scoring run, a **logistic regression** model is trained on **synthetic 
 - `ai-service/` — Parsing, extraction, cross-reference, ML, explanations
 - `prisma/` — Schema and migrations
 
+## Docker (Postgres + Redis + AI + API)
+
+From the repo root (requires Docker Engine):
+
+```bash
+docker compose up --build -d postgres redis ai api
+```
+
+- Postgres: `localhost:5433` (unchanged from earlier compose)
+- API: `http://localhost:4000` (set `NEXT_PUBLIC_API_URL` in `.env` for the Next.js app)
+- AI: `http://localhost:5000`
+
+Apply migrations against the **compose** Postgres when the API container starts (`prisma migrate deploy` in the API image `CMD`). For a fresh DB, ensure `JWT_SECRET` is set in the shell or in a root `.env` file referenced by Compose variable substitution.
+
 ## Notes
 
 - This is an **MVP**: predictions are **illustrative**, not licensed medical or legal advice.
 - OAuth via NextAuth remains available under `/api/auth/*`; ClaimShield’s saved analyses use **Express JWT** (`/login`, `/register`).
+- Saved runs open from the **dashboard** via `/dashboard/results?id=<analysisId>`; new runs still use `sessionStorage` until you refresh.
