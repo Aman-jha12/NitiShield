@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import uuid
 from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -19,6 +24,7 @@ from parsers.document_parser import parse_document
 from services.appeal import generate_appeal
 from services.explain import build_explanations
 
+load_dotenv(_ROOT.parent / ".env")
 load_dotenv()
 
 app = Flask(__name__)
